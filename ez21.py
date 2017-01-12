@@ -4,7 +4,7 @@ import pdb
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
-
+import random
 
 
 class Easy21(object):
@@ -38,17 +38,16 @@ class Easy21(object):
 
 		*eps: prob of taking the random action in an eps-greedy policy
 		'''
-		self._p_red_ = p
+		self.p = p
 
 		# player sum v. dealer showing
-		self.dealer_show = self.draw_1st_card()
-		self.dealer_sum = self.dealer_show
+		self.dealer_sum = self.dealer_show = self.draw_1st_card()
 		self.player_sum = self.draw_1st_card()
 
 		print('Initially:\n' +
 			'  Player: {:d}\n'.format(self.player_sum) + 
 			'  Dealer: {:d}\n'.format(self.dealer_show))
-		state = [self.dealer_show, self.player_sum]
+		# state = [self.player_sum, self.dealer_show]
 
 
 	def get_state(self):
@@ -56,18 +55,19 @@ class Easy21(object):
 
 
 	def draw(self, person):
-		sign = np.random.binomial(1, self._p_red_)
+		sign = np.random.binomial(1, self.p)
 		card = np.random.randint(low=1, high=11)
 		if sign > 0.5:
 			card = - card
 
-		msg = '  Player: {:d}'.format(self.player_sum)
+		msg = '  Player: {:>2d}'.format(self.player_sum)
 		if person == 'player':	
-			msg += ', {:d}'.format(card)
-		msg += '\n  Dealer: {:d}'.format(self.dealer_sum)
+			msg += ', {:>2d}'.format(card)
+		msg += '\n  Dealer: {:>2d}'.format(self.dealer_sum)
 		if person == 'dealer':
-			msg += ', {:d}'.format(card)
+			msg += ', {:>2d}'.format(card)
 		print(msg)
+
 		return card
 			
 
@@ -86,25 +86,32 @@ class Easy21(object):
 
 	def reward(self):
 		if self.player_sum < 1 or self.player_sum > 21:
+			print('Player busted')
 			return -1
 		if self.dealer_sum < 1 or self.dealer_sum > 21:
+			print('Dealer busted')
 			return 1
 		if self.player_sum < self.dealer_sum:
+			print('Player lost')
 			return -1
 		if self.player_sum > self.dealer_sum:
+			print('Player won')
 			return 1
-		else:
+		if self.player_sum == self.dealer_sum:
+			print('A draw')
 			return 0
+		else:
+			raise ValueError(
+				'Impossible: {:d} {:d}'.format(
+					self.player_sum,
+					self.dealer_sum))
 
-	def _dealer_move(self):
-		pass
 
 	def step(self, action):
 		# player's move: stick or draw
 		# detection of end-game
 		# dealer's move: (criterion)
 		# detection of end-game
-
 		if action == 'stick':
 			while self.dealer_sum < 17:
 				self.dealer_sum += self.draw('dealer')
@@ -117,7 +124,6 @@ class Easy21(object):
 			if self.isEndGame():
 				return self.reward(), (None, None)
 			else:
-				# self._dealer_move()
 				self.dealer_sum += self.draw('dealer')
 				if self.isEndGame():
 					return self.reward(), (None, None)
@@ -127,13 +133,11 @@ class Easy21(object):
 
 class Player(object):
 	def __init__(self):
-		self.sum = 0
-		# self.eps = 1.0
-		# self.at = 1.0
-		# self.N0 = 100
-		self.Nsa = np.ones([21, 10, 2])
+		self.Nsa = np.zeros([21, 10, 2])
 		self.Qsa = np.zeros([21, 10, 2])
+		self.Nsa_ = np.zeros([21, 10, 2])
 		self.action = ['hit', 'stick']
+		# self.action = dict(hit=0, stick=1)
 
 	def act(self, state):
 		N0 = 100.0
@@ -142,44 +146,80 @@ class Player(object):
 		p -= 1
 		d -= 1
 
-		Nst = np.sum(self.Nsa[p, d])
+		Nst = np.sum(self.Nsa_[p, d])
 		eps = N0 / (N0 + Nst)  # eps: random, 1 - eps: best
 
 		roll = np.random.uniform(1)
 		if roll > eps:	# act greedily
 			a = np.argmax(self.Qsa[p, d])
-			self.Nsa[p, d, a] += 1
+			print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
+				p + 1, d + 1, a, self.Nsa[p, d, a], self.Qsa[p, d, 0], self.Qsa[p, d, 1]))
+			self.Nsa_[p, d, a] += 1
 			return self.action[a]
-		else:			# act randomly
-			return random.choice(self.action)
+		else:			# act randomly; the first move is always random
+			a = random.choice([0, 1])
+			print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
+				p + 1, d + 1, a, self.Nsa[p, d, a]))
+			self.Nsa_[p, d, a] += 1
+			return self.action[a]
+
+	def reset_count(self):
+		self.Nsa_ = np.zeros([21, 10, 2])
 
 
 	def update(self, reward):
-		# if reward is None:
-		# 	pass
-		# else:
-		self.Qsa += 1. / self.Nsa * (reward - self.Qsa)
+		index = np.nonzero(self.Nsa_)
+		self.Nsa += self.Nsa_
+		self.Qsa[index[0], index[1], index[2]] += \
+			1. / self.Nsa[index[0], index[1], index[2]] * \
+			(reward - self.Qsa[index[0], index[1], index[2]])
+		self.reset_count()
 
-
-N_ITER = 10000
+N_ITER = 1000
 
 def main():
 	player = Player()
 
 	for it in range(N_ITER):
 		game = Easy21()
+		# player_tmp = Player()
+		# player_tmp.Qsa = player.Qsa
 		reward = None
 		while reward is None:
 			state = game.get_state()
+			# action = player_tmp.act(state)
 			action = player.act(state)
 			reward, state = game.step(action)
+		# pdb.set_trace()
+
 		player.update(reward)
+		# index = np.nonzero(player_tmp.Nsa)
+		# player.Qsa[index[0], index[1], index[2]] += \
+		# 	1. / player_tmp.Nsa[index[0], index[1], index[2]] * \
+		# 	(reward - player_tmp.Qsa[index[0], index[1], index[2]])
+
+		# player.Nsa += player_tmp.Nsa
+
+
+		# player.reset_count()
 
 
 	# pdb.set_trace()
 	
-	plt.figure()
-	plt.imshow(np.max(player.Qsa, 2))
+	plt.figure(figsize=[12, 18])
+	plt.subplot(221)
+	plt.imshow(np.max(player.Qsa, 2), vmin=-1, vmax=1, interpolation='none')
+	plt.colorbar()
+	plt.subplot(222)
+	plt.imshow(np.log10(np.sum(player.Nsa, 2)), interpolation='none')
+	plt.colorbar()
+	plt.subplot(223)
+	plt.imshow(player.Qsa[:,:,0], interpolation='none')
+	plt.colorbar()
+	plt.title('hit')
+	plt.subplot(224)
+	plt.imshow(player.Qsa[:,:,1], interpolation='none')
+	plt.title('stick')
 	plt.colorbar()
 	plt.savefig('test.png')
 
