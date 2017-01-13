@@ -1,13 +1,35 @@
 # codings = utf8
 
+'''
+Specifically, write a function, named `step`, 
+    which takes as input 
+    a state s (dealer's first card 1-10 and the player's sum 1-21), and 
+    an action a (hit or stick), and 
+    returns 
+        a sample of the next state s0 
+        (which may be terminal if the game is finished)
+        and reward r. 
+
+We will be using this environment for model-free reinforcement learning,
+and you should not explicitly represent the transition matrix for the MDP.
+
+*There is no discounting (gamma = 1).
+*You should treat the dealer's moves as part of the environment, 
+i.e. calling step with a stick action will play out the
+dealer's cards and return the final reward and terminal state.
+
+*eps: prob of taking the random action in an eps-greedy policy
+'''
+
 # import tensorflow as tf
-import numpy as np
+import random
+import sys
 import pdb
 import matplotlib as mpl
 mpl.use('Agg')
+
 import matplotlib.pyplot as plt
-import random
-import sys
+import numpy as np
 
 N_ITER = 1  # num of episodes
 
@@ -17,26 +39,6 @@ class Easy21(object):
     color: determined during card drawing procedures
     '''
     def __init__(self, p=1./3):
-        '''
-        Specifically, write a function, named `step`, 
-            which takes as input 
-            a state s (dealer's first card 1-10 and the player's sum 1-21), and 
-            an action a (hit or stick), and 
-            returns 
-                a sample of the next state s0 
-                (which may be terminal if the game is finished)
-                and reward r. 
-
-        We will be using this environment for model-free reinforcement learning,
-        and you should not explicitly represent the transition matrix for the MDP.
-
-        *There is no discounting (gamma = 1).
-        *You should treat the dealer's moves as part of the environment, 
-        i.e. calling step with a stick action will play out the
-        dealer's cards and return the final reward and terminal state.
-
-        *eps: prob of taking the random action in an eps-greedy policy
-        '''
         self.p = p  # prob of red (minus) card
 
         # player sum v. dealer showing
@@ -59,7 +61,7 @@ class Easy21(object):
             card = - card
 
         # msg = '  Player: {:>2d}'.format(self.player_sum)
-        # if person == 'player':    
+        # if person == 'player':
         #   msg += ', {:>2d}'.format(card)
         # msg += '\n  Dealer: {:>2d}'.format(self.dealer_sum)
         # if person == 'dealer':
@@ -67,7 +69,7 @@ class Easy21(object):
         # print(msg)
 
         return card
-            
+
 
     def draw_1st_card(self):
         point = np.random.randint(low=1, high=11)
@@ -192,14 +194,6 @@ class SarsaPlayer(Player):
         self.prev_state_action = [0, 0, 0]  # p, d; zero indexed
         # self.Nsa[0, 0, 0] = 1
 
-    def update(self, reward):
-        ''' I should update online '''
-        pass
-
-    #   i, j, k = np.nonzero(self.nsa)
-    #   self.Nsa += self.nsa
-    #   self.Qsa
-
     def act(self, state, reward, N0=100, gamma=1):
         ''' I should update during action? 
         gamma: discount
@@ -251,10 +245,136 @@ class SarsaPlayer(Player):
 
 
 class SarsaLambdaPlayer(SarsaPlayer):
-    ''' Forward view implementation '''
-    def __init__(self, l):
+    def __init__(self, lam):
         super(SarsaLambdaPlayer, self).__init__()
-        self.l = l
+        self.Esa = np.zeros([21, 10, 2])
+        self.lam = lam
+
+    def act(self, state, reward, N0=100, gamma=1):
+        ''' I should update during action? 
+        gamma: discount
+        '''
+
+
+        p, d = state  # player_sum, dealer_show
+        p, d = p - 1, d - 1  # convert i
+        
+
+
+        # Q += a[R + rQ' - Q]nto zero-started index for numpy
+        # self.Qsa += 
+
+        # act
+        Nst = np.sum(self.nsa[p, d])
+        eps = N0 / (N0 + Nst)  # eps: random, 1 - eps: best
+
+        roll = np.random.uniform(1)
+        if roll > eps:  # act greedily
+            a = np.argmax(self.Qsa[p, d])
+            # print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
+            #   p + 1, d + 1, a, self.Nsa[p, d, a], self.Qsa[p, d, 0], self.Qsa[p, d, 1]))
+            # self.nsa[p, d, a] += 1
+            # return self.action[a]
+        else:           # act randomly; the first move is always random
+            a = random.choice([0, 1])
+            # print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
+            #   p + 1, d + 1, a, self.Nsa[p, d, a]))
+        # self.nsa[p, d, a] += 1
+
+        # New: [p, d, a],  Old: [i, j, k]
+        i, j, k = self.prev_state_action
+        alpha = 1. / self.Nsa[p, d, a]
+        delta = reward + gamma * self.Qsa[p, d, a] - self.Qsa[i, j, k]
+        self.Esa[i, j, k] += 1
+        self.Qsa += alpha * delta * self.Esa
+        self.Esa *= gamma * self.lam
+
+        # self.Nsa[p, d, a] += 1
+        # self.Qsa[i, j, k] += \
+        #     1. / self.Nsa[p, d, a] * \
+        #     (reward + gamma * self.Qsa[p, d, a] - self.Qsa[i, j, k])
+        # # self._reset_count()
+        self.prev_state_action = [p, d, a]
+
+        return self.action[a]
+
+    def reset(self):
+        self.Esa = 0. * self.Esa
+
+    def update(self, reward):
+        ''' The last step of SARSA is to update off-line '''
+        # i, j, k = np.nonzero(self.nsa)
+        # self.Nsa += self.nsa
+        i, j, k = self.prev_state_action
+        self.Qsa[i, j, k] += \
+            1. / self.Nsa[i, j, k] * (reward - self.Qsa[i, j, k])
+        # self._reset_count()
+
+        # # ===========
+        # i, j, k = self.prev_state_action
+        # alpha = 1. / self.Nsa[p, d, a]
+        # delta = reward + gamma * self.Qsa[p, d, a] - self.Qsa[i, j, k]
+        # self.Esa[i, j, k] += 1
+        # self.Qsa += alpha * delta * self.Esa
+        # self.Esa *= gamma * self.lam
+
+
+# class SarsaLambdaPlayer(SarsaPlayer):
+#     ''' Forward view implementation '''
+#     def __init__(self, l):
+#         super(SarsaLambdaPlayer, self).__init__()
+#         self.l = l
+#         self.sar = list()
+
+#     def act(self, state, reward, N0=100, gamma=1):
+#         ''' I should update during action? 
+#         gamma: discount
+#         '''
+#         self._remember(reward)
+
+#         # update
+#         p, d = state  # player_sum, dealer_show
+#         p, d = p - 1, d - 1  # convert i
+#         self._remember_new(state)
+
+#         # act
+#         Nst = np.sum(self.nsa[p, d])
+#         eps = N0 / (N0 + Nst)  # eps: random, 1 - eps: best
+
+#         roll = np.random.uniform(1)
+#         if roll > eps:  # act greedily
+#             a = np.argmax(self.Qsa[p, d])
+#             # print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
+#             #   p + 1, d + 1, a, self.Nsa[p, d, a], self.Qsa[p, d, 0], self.Qsa[p, d, 1]))
+#             # self.nsa[p, d, a] += 1
+#             # return self.action[a]
+#         else:           # act randomly; the first move is always random
+#             a = random.choice([0, 1])
+#             # print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
+#             #   p + 1, d + 1, a, self.Nsa[p, d, a]))
+
+#         self._remember(a)
+
+#         return self.action[a]
+
+#     # def _remember_state(self, state):
+#     #     self.sar.append([state])
+
+#     # def _remember_action(self, action):
+#     #     ''' action is an `int` '''
+#     #     self.sar[-1] = self.sar[-1] + [action]
+#     def _remember_new(self, state):
+#         self.sar.append([state])
+
+#     def _remember(self, item):
+#         ''' Item is either 'action' or 'reward' '''
+#         self.sar[-1] = self.sar[-1] + [item]
+
+#     def _remember_reward(self, reward):
+#         self.sar[-1] = self.sar[-1] + [reward]
+
+#     def update(self, reward):
+#         self._remember_reward(reward)
 
 
 def plot(player):
@@ -262,15 +382,17 @@ def plot(player):
     plt.subplot(221)
     plt.imshow(np.max(player.Qsa, 2), vmin=-1, vmax=1, interpolation='none')
     plt.colorbar()
+    plt.title('V(s) = max Q(s, a)')
     plt.subplot(222)
     plt.imshow(np.log10(np.sum(player.Nsa, 2) + 1), interpolation='none')
     plt.colorbar()
+    plt.title('log10 N(s, a)')
     plt.subplot(223)
-    plt.imshow(player.Qsa[:,:,0], vmin=-1, vmax=1, interpolation='none')
+    plt.imshow(player.Qsa[:, :, 0], vmin=-1, vmax=1, interpolation='none')
     plt.colorbar()
     plt.title('hit')
     plt.subplot(224)
-    plt.imshow(player.Qsa[:,:,1], vmin=-1, vmax=1, interpolation='none')
+    plt.imshow(player.Qsa[:, :, 1], vmin=-1, vmax=1, interpolation='none')
     plt.title('stick')
     plt.colorbar()
     plt.savefig('test.png')
@@ -315,9 +437,31 @@ def test_sarsa(N_ITER):
     finally:
         plot(player)
 
+
+def test_sarsa_lambda(N_ITER):
+    try:
+        player = SarsaPlayer()
+        for it in range(N_ITER):
+            print('Episode {:8d}'.format(it))
+            game = Easy21()
+            reward = None
+            while reward is None:
+                if reward is None:
+                    reward = 0
+                state = game.get_state()
+                action = player.act(state, reward)
+                reward, state = game.step(action)
+
+            player.update(reward)
+    except KeyboardInterrupt:
+        print('Done')
+    finally:
+        plot(player)
+
+
 if __name__ == '__main__':
     print(sys.argv)
     if len(sys.argv) > 1:
         N_ITER = int(sys.argv[1])
     # game = Easy21()
-    test_sarsa(N_ITER)
+    test_sarsa_lambda(N_ITER)
