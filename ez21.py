@@ -146,39 +146,44 @@ class Easy21(object):
         return None, (self.player_sum, self.dealer_show)
 
 
-class Player(object):
-    def __init__(self):
+class MonteCarloPlayer(object):
+    def __init__(self, N0=100, lam=1.0, gamma=1.0):
         self.Qsa = np.zeros([21, 10, 2])
         self.Nsa = np.zeros([21, 10, 2])  # the whole history count
         self.nsa = np.zeros([21, 10, 2])  # this episode
         self.action = ['hit', 'stick']
+        self.N0 = N0
+        self.lam = lam      # useless in MC
+        self.gamma = gamma  # useless in MC
 
-    def act(self, state, N0=100):
+    def act(self, state, reward=None):
+        '''
+        Remeber to convert state into zero-indexing format
+        *reward is useless in Monte Carlo
+        '''
         p, d = state  # player_sum, dealer_show
-        p, d = p - 1, d - 1  # convert into zero-started index for numpy
-
-        Nst = np.sum(self.nsa[p, d])
-        eps = N0 / (N0 + Nst)  # eps: random, 1 - eps: best
-
-        roll = np.random.uniform(1)
-        if roll > eps:  # act greedily
-            a = np.argmax(self.Qsa[p, d])
-            # print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
-            #   p + 1, d + 1, a, self.Nsa[p, d, a], self.Qsa[p, d, 0], self.Qsa[p, d, 1]))
-            # self.nsa[p, d, a] += 1
-            # return self.action[a]
-        else:           # act randomly; the first move is always random
-            a = random.choice([0, 1])
-            # print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
-            #   p + 1, d + 1, a, self.Nsa[p, d, a]))
-        self.nsa[p, d, a] += 1
+        a = self._epsilonGreedy(state=(p - 1, d - 1))
+        _ = self._update_a_step(state_action=(p - 1, d - 1, a))
         return self.action[a]
+
+    def _epsilonGreedy(self, state):
+        ''' return action index '''
+        Nst = np.sum(self.nsa[state])
+        eps = self.N0 / (self.N0 + Nst)
+        actions = self.Qsa[state]
+        return epsilonGreedy(eps, actions)
 
     def _reset_count(self):
         self.nsa = np.zeros([21, 10, 2])
+        return None
+
+    def _update_a_step(self, state_action):
+        ''' In contrast to Episode-wise contrast '''
+        self.nsa[state_action] += 1
+        return None
 
     def update(self, reward):
-        ''' MC can only update off-line '''
+        ''' Episode-wise MC can only update off-line '''
         i, j, k = np.nonzero(self.nsa)
         self.Nsa += self.nsa
         self.Qsa[i, j, k] += \
@@ -186,91 +191,91 @@ class Player(object):
         self._reset_count()
 
 
-class SarsaPlayer(Player):
-    '''
-    Implement Sarsa(λ) in 21s.
-    Initialise the value function to zero.
-    Use the same step-size and exploration schedules as in the previous section.
+# class SarsaPlayer(MonteCarloPlayer):
+#     '''
+#     Implement Sarsa(λ) in 21s.
+#     Initialise the value function to zero.
+#     Use the same step-size and exploration schedules as in the previous section.
 
-    Run the algorithm with parameter values λ ∈ {0, 0.1, 0.2, ..., 1}.
-    Stop each run after 1000 episodes and report the mean-squared error 
+#     Run the algorithm with parameter values λ ∈ {0, 0.1, 0.2, ..., 1}.
+#     Stop each run after 1000 episodes and report the mean-squared error 
 
-        sum s,a(Q(s, a) − Q∗(s, a))^2 over all states s and actions a,
+#         sum s,a(Q(s, a) − Q∗(s, a))^2 over all states s and actions a,
 
-    comparing the true values Q∗(s, a) computed in the previous section with the estimated values 
-    Q(s, a) computed by Sarsa. Plot the meansquared error against λ.
-    For λ = 0 and λ = 1 only, plot the learning curve of mean-squared error against episode number.
+#     comparing the true values Q∗(s, a) computed in the previous section with the estimated values 
+#     Q(s, a) computed by Sarsa. Plot the meansquared error against λ.
+#     For λ = 0 and λ = 1 only, plot the learning curve of mean-squared error against episode number.
 
-    1. Q += a[R + rQ' - Q]
+#     1. Q += a[R + rQ' - Q]
 
-    First I should impl SARSA-TD1
-    '''
-    def __init__(self):
-        super(SarsaPlayer, self).__init__()
-        self.prev_state_action = [0, 0, 0]  # p, d; zero indexed
-        # self.Nsa[0, 0, 0] = 1
+#     First I should impl SARSA-TD1
+#     '''
+#     def __init__(self):
+#         super(SarsaPlayer, self).__init__()
+#         self.prev_state_action = [0, 0, 0]  # p, d; zero indexed
+#         # self.Nsa[0, 0, 0] = 1
 
-    def act(self, state, reward, N0=100, gamma=1):
-        ''' I should update during action? 
-        gamma: discount
-        '''
+#     def act(self, state, reward, N0=100, gamma=1):
+#         ''' I should update during action? 
+#         gamma: discount
+#         '''
 
-        # update
-        p, d = state  # player_sum, dealer_show
-        p, d = p - 1, d - 1  # convert i
+#         # update
+#         p, d = state  # player_sum, dealer_show
+#         p, d = p - 1, d - 1  # convert i
 
-        # Q += a[R + rQ' - Q]nto zero-started index for numpy
-        # self.Qsa += 
+#         # Q += a[R + rQ' - Q]nto zero-started index for numpy
+#         # self.Qsa += 
 
-        # act
-        Nst = np.sum(self.nsa[p, d])
-        eps = N0 / (N0 + Nst)  # eps: random, 1 - eps: best
+#         # act
+#         Nst = np.sum(self.nsa[p, d])
+#         eps = N0 / (N0 + Nst)  # eps: random, 1 - eps: best
 
-        roll = np.random.uniform(1)
-        if roll > eps:  # act greedily
-            a = np.argmax(self.Qsa[p, d])
-            # print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
-            #   p + 1, d + 1, a, self.Nsa[p, d, a], self.Qsa[p, d, 0], self.Qsa[p, d, 1]))
-            # self.nsa[p, d, a] += 1
-            # return self.action[a]
-        else:           # act randomly; the first move is always random
-            a = random.choice([0, 1])
-            # print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
-            #   p + 1, d + 1, a, self.Nsa[p, d, a]))
-        # self.nsa[p, d, a] += 1
+#         roll = np.random.uniform(1)
+#         if roll > eps:  # act greedily
+#             a = np.argmax(self.Qsa[p, d])
+#             # print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
+#             #   p + 1, d + 1, a, self.Nsa[p, d, a], self.Qsa[p, d, 0], self.Qsa[p, d, 1]))
+#             # self.nsa[p, d, a] += 1
+#             # return self.action[a]
+#         else:           # act randomly; the first move is always random
+#             a = random.choice([0, 1])
+#             # print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
+#             #   p + 1, d + 1, a, self.Nsa[p, d, a]))
+#         # self.nsa[p, d, a] += 1
 
-        i, j, k = self.prev_state_action
-        # New: [p, d, a],  Old: [i, j, k]
-        self.Nsa[p, d, a] += 1
-        self.Qsa[i, j, k] += \
-            1. / self.Nsa[p, d, a] * \
-            (reward + gamma * self.Qsa[p, d, a] - self.Qsa[i, j, k])
-        # self._reset_count()
-        self.prev_state_action = [p, d, a]
+#         i, j, k = self.prev_state_action
+#         # New: [p, d, a],  Old: [i, j, k]
+#         self.Nsa[p, d, a] += 1
+#         self.Qsa[i, j, k] += \
+#             1. / self.Nsa[p, d, a] * \
+#             (reward + gamma * self.Qsa[p, d, a] - self.Qsa[i, j, k])
+#         # self._reset_count()
+#         self.prev_state_action = [p, d, a]
 
-        return self.action[a]
+#         return self.action[a]
 
-    def update(self, reward):
-        ''' The last step of SARSA is to update off-line '''
-        # i, j, k = np.nonzero(self.nsa)
-        # self.Nsa += self.nsa
-        i, j, k = self.prev_state_action
-        self.Qsa[i, j, k] += \
-            1. / self.Nsa[i, j, k] * (reward - self.Qsa[i, j, k])
-        # self._reset_count()
+#     def update(self, reward):
+#         ''' The last step of SARSA is to update off-line '''
+#         # i, j, k = np.nonzero(self.nsa)
+#         # self.Nsa += self.nsa
+#         i, j, k = self.prev_state_action
+#         self.Qsa[i, j, k] += \
+#             1. / self.Nsa[i, j, k] * (reward - self.Qsa[i, j, k])
+#         # self._reset_count()
 
 
-class SarsaLambdaPlayer(SarsaPlayer):
+class SarsaLambdaPlayer(MonteCarloPlayer):
     '''
     Backward view 
         Q += a[R + rQ' - Q] 
     '''
     def __init__(self, N0=100, lam=1.0, gamma=1.0):
-        super(SarsaLambdaPlayer, self).__init__()
+        super(SarsaLambdaPlayer, self).__init__(N0, lam, gamma)
         self.Esa = np.zeros([21, 10, 2])  # Eligibility trace
-        self.lam = lam      # discounting factor for eligibility
-        self.gamma = gamma  # discounting factor for reward
-        self.N0 = N0        # stickness to random action for epsilon
+        # self.lam = lam      # discounting factor for eligibility
+        # self.gamma = gamma  # discounting factor for reward
+        # self.N0 = N0        # stickness to random action for epsilon
         i, j, k = self.prev_state_action
         self.Nsa[i, j, k] = 1
 
@@ -313,27 +318,51 @@ class SarsaLambdaPlayer(SarsaPlayer):
 def plot(player, msg='test'):
     plt.figure(figsize=[12, 18])
     plt.subplot(221)
-    plt.imshow(np.max(player.Qsa, 2), vmin=-1, vmax=1, interpolation='none')
+    plt.imshow(
+        np.max(player.Qsa, 2),
+        vmin=-1, vmax=1,
+        extent=[1, 10, 1, 21],
+        interpolation='none')
     plt.colorbar()
     plt.title('V(s) = max Q(s, a)')
     plt.subplot(222)
-    plt.imshow(np.log10(np.sum(player.Nsa, 2) + 1), interpolation='none')
+    plt.imshow(
+        np.log10(np.sum(player.Nsa, 2) + 1),
+        extent=[1, 10, 1, 21],
+        interpolation='none')
     plt.colorbar()
     plt.title('log10 N(s, a)')
     plt.subplot(223)
-    plt.imshow(player.Qsa[:, :, 0], vmin=-1, vmax=1, interpolation='none')
+    plt.imshow(
+        player.Qsa[:, :, 0], vmin=-1, vmax=1,
+        extent=[1, 10, 1, 21],
+        interpolation='none')
     plt.colorbar()
     plt.title('hit')
     plt.subplot(224)
-    plt.imshow(player.Qsa[:, :, 1], vmin=-1, vmax=1, interpolation='none')
+    plt.imshow(
+        player.Qsa[:, :, 1], vmin=-1, vmax=1,
+        extent=[1, 10, 1, 21],
+        interpolation='none')
     plt.title('stick')
     plt.colorbar()
     plt.savefig(msg + '.png')
 
 
-def test_mc():
+    best_action = np.argmax(player.Qsa, 2)
+    plt.figure()
+    plt.imshow(
+        best_action,
+        cmap='gray',
+        extent=[1, 10, 1, 21],
+        interpolation='none')
+    plt.title('black: hit; white: stick')
+    plt.savefig(msg + 'best-act.png')
+
+
+def test_mc(N_ITER):
     try:
-        player = Player()
+        player = MonteCarloPlayer()
         for it in range(N_ITER):
             print('Episode {:8d}'.format(it))
             game = Easy21()
@@ -352,6 +381,20 @@ def test_mc():
 
 def test_sarsa(N_ITER):
     try:
+        mcPlayer = MonteCarloPlayer()
+        game = Easy21()
+        for it in range(N_ITER):
+            print('Episode {:8d}'.format(it))
+            game = Easy21()
+            reward = None
+            while reward is None:
+                state = game.get_state()
+                action = mcPlayer.act(state)
+                reward, state = game.step(action)
+
+            mcPlayer.update(reward)
+        
+
         player = SarsaPlayer()
         for it in range(N_ITER):
             print('Episode {:8d}'.format(it))
@@ -401,4 +444,5 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         N_ITER = int(sys.argv[1])
     # game = Easy21()
-    test_sarsa_lambda(N_ITER)
+    # test_sarsa_lambda(N_ITER)
+    test_mc(N_ITER)
