@@ -25,10 +25,9 @@ dealer's cards and return the final reward and terminal state.
 import random
 import sys
 import pdb
-# import matplotlib as mpl
-# mpl.use('Agg')
-
-# import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 from util import plot
 from game import Easy21
@@ -180,9 +179,8 @@ def test_mc(N_ITER):
             print('Episode {:8d}'.format(it))
             game = Easy21()
             reward = None
-            # while reward is None:
             while True:
-                if game.isEndGame():
+                if game.isEnded():
                     break
                 state = game.get_state()
                 action = player.act(state)
@@ -197,57 +195,61 @@ def test_mc(N_ITER):
 
 def test_sarsa_lambda(N_ITER):
     try:
-        # mcPlayer = MonteCarloPlayer()
-        # game = Easy21()
-        # for it in range(N_ITER):
-        #     print('Episode {:8d}'.format(it))
-        #     game = Easy21()
-        #     reward = None
-        #     while reward is None:
-        #         state = game.get_state()
-        #         action = mcPlayer.act(state)
-        #         reward, state = game.step(action)
+        mcplayer = MonteCarloPlayer()
+        for it in range(N_ITER):
+            print('Episode {:8d}'.format(it))
+            game = Easy21()
+            reward = None
+            while True:
+                if game.isEnded():
+                    break
+                state = game.get_state()
+                action = mcplayer.act(state)
+                reward, state = game.step(action)
 
-        #     mcPlayer.update(reward)
-        
-        for i in range(5, 6):
+            mcplayer.update(reward)
+        plot(mcplayer, 'MC-as-standard')
+
+        nEpisode = 11
+        mse = np.zeros((nEpisode,))
+        for i in range(0, nEpisode):
             player = SarsaLambdaPlayer(lam=i*0.1)
-            for it in range(N_ITER):
+            for it in range(1000):
                 print('Episode {:8d}'.format(it))
                 game = Easy21()
-                # pdb.set_trace()
                 action = player.act_initially(game.get_state())
                 reward, state = game.step(action)
-                # reward = None
-                # while reward is None:
-                #     if reward is None:
-                #         reward = 0
                 while True:
-                    if game.isEndGame():
+                    if game.isEnded():
                         break
                     else:
                         state = game.get_state()
                         action = player.act(state, reward)
                         reward, state = game.step(action)
-                # pdb.set_trace()
 
-                # state_action = state + (player.action.index(action),)
-                # player.update(state_action, reward)
                 player.update(reward)
-            # pdb.set_trace()
+
             plot(player, 'sarsa-lam-{}'.format(i))
+            mse[i] = np.mean(np.square(mcplayer.Qsa - player.Qsa))
         
     except KeyboardInterrupt:
         print('Done')
     finally:
         plot(player)
-        # print(player.Qsa)
+        plt.figure()
+        plt.plot(np.arange(11) / 10., mse, 'o-')
+        plt.savefig('MSE.png')
+        plt.close()
 
 
 if __name__ == '__main__':
     print(sys.argv)
     if len(sys.argv) > 1:
         N_ITER = int(sys.argv[1])
+    if len(sys.argv) > 2:
+        N_ITER_SARSA = int(sys.argv[2])
+    else:
+        N_ITER_SARSA = 1000
     # game = Easy21()
-    test_sarsa_lambda(N_ITER)
+    test_sarsa_lambda(N_ITER, N_ITER_SARSA)
     # test_mc(N_ITER)

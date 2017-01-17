@@ -11,7 +11,7 @@ class Easy21(object):
         # player sum v. dealer showing
         self.dealer_sum = self.dealer_show = self.draw_1st_card()
         self.player_sum = self.draw_1st_card()
-        self.isEnded = False
+        self._isEnded = False
 
         # print('Initially:\n' +
         #   '  Player: {:d}\n'.format(self.player_sum) + 
@@ -47,8 +47,8 @@ class Easy21(object):
         return point
 
 
-    def isEndGame(self):
-        if self.isEnded:
+    def isEnded(self):
+        if self._isEnded:
             return True
         if self.player_sum < 1 or self.player_sum > 21:
             return True
@@ -87,18 +87,18 @@ class Easy21(object):
         if action == 'stick':
             while self.dealer_sum < 17:
                 self.dealer_sum += self.draw('dealer')
-                # self.isEnded = True
-                if self.isEndGame():
+                # self._isEnded = True
+                if self.isEnded():
                     break
-            self.isEnded = True
+            self._isEnded = True
             return self.reward(), (self.player_sum, self.dealer_show)
         else:
             self.player_sum += self.draw('player')
-            if self.isEndGame():
+            if self.isEnded():
                 return self.reward(), (self.player_sum, self.dealer_show)
             else:
                 self.dealer_sum += self.draw('dealer')
-                if self.isEndGame():
+                if self.isEnded():
                     return self.reward(), (self.player_sum, self.dealer_show)
 
         return 0, (self.player_sum, self.dealer_show)
