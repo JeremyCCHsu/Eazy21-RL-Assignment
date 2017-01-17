@@ -9,7 +9,7 @@ def plot(player, msg='test'):
     plt.subplot(221)
     plt.imshow(
         np.max(player.Qsa, 2),
-        vmin=-1, vmax=1,
+        # vmin=-1, vmax=1,
         extent=[1, 10, 1, 21],
         interpolation='none')
     plt.colorbar()
@@ -23,14 +23,16 @@ def plot(player, msg='test'):
     plt.title('log10 N(s, a)')
     plt.subplot(223)
     plt.imshow(
-        player.Qsa[:, :, 0], vmin=-1, vmax=1,
+        player.Qsa[:, :, 0],
+        # vmin=-1, vmax=1,
         extent=[1, 10, 1, 21],
         interpolation='none')
     plt.colorbar()
     plt.title('hit')
     plt.subplot(224)
     plt.imshow(
-        player.Qsa[:, :, 1], vmin=-1, vmax=1,
+        player.Qsa[:, :, 1],
+        # vmin=-1, vmax=1,
         extent=[1, 10, 21, 1],
         interpolation='none')
     plt.title('stick')

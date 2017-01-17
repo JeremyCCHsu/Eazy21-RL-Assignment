@@ -31,13 +31,13 @@ class Easy21(object):
         if sign > 0.5:
             card = - card
 
-        msg = '  Player: {:>2d}'.format(self.player_sum)
-        if person == 'player':
-          msg += ', {:>2d}'.format(card)
-        msg += '\n  Dealer: {:>2d}'.format(self.dealer_sum)
-        if person == 'dealer':
-          msg += ', {:>2d}'.format(card)
-        print(msg)
+        # msg = '  Player: {:>2d}'.format(self.player_sum)
+        # if person == 'player':
+        #   msg += ', {:>2d}'.format(card)
+        # msg += '\n  Dealer: {:>2d}'.format(self.dealer_sum)
+        # if person == 'dealer':
+        #   msg += ', {:>2d}'.format(card)
+        # print(msg)
 
         return card
 
@@ -87,9 +87,10 @@ class Easy21(object):
         if action == 'stick':
             while self.dealer_sum < 17:
                 self.dealer_sum += self.draw('dealer')
-                self.isEnded = True
-                # if self.isEndGame():
-                #     break
+                # self.isEnded = True
+                if self.isEndGame():
+                    break
+            self.isEnded = True
             return self.reward(), (self.player_sum, self.dealer_show)
         else:
             self.player_sum += self.draw('player')
