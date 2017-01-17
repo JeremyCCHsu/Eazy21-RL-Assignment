@@ -25,13 +25,17 @@ dealer's cards and return the final reward and terminal state.
 import random
 import sys
 import pdb
-import matplotlib as mpl
-mpl.use('Agg')
+# import matplotlib as mpl
+# mpl.use('Agg')
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
+from util import plot
+from game import Easy21
 
 N_ITER = 1  # num of episodes
+
+
 
 def epsilonGreedy(eps, actions):
     ''' return action index '''
@@ -47,103 +51,6 @@ def epsilonGreedy(eps, actions):
         # print('Random act: (p={:d}, d={:d}) => a={:d}; Exp = {}'.format(
         #   p + 1, d + 1, a, self.Nsa[p, d, a]))
     return a
-
-
-class Easy21(object):
-    ''' 
-    point: between [1, 10]
-    color: determined during card drawing procedures
-    '''
-    def __init__(self, p=1./3):
-        self.p = p  # prob of red (minus) card
-
-        # player sum v. dealer showing
-        self.dealer_sum = self.dealer_show = self.draw_1st_card()
-        self.player_sum = self.draw_1st_card()
-
-        # print('Initially:\n' +
-        #   '  Player: {:d}\n'.format(self.player_sum) + 
-        #   '  Dealer: {:d}\n'.format(self.dealer_show))
-
-
-    def get_state(self):
-        return [self.player_sum, self.dealer_show]
-
-
-    def draw(self, person):
-        sign = np.random.binomial(1, self.p)
-        card = np.random.randint(low=1, high=11)
-        if sign > 0.5:
-            card = - card
-
-        # msg = '  Player: {:>2d}'.format(self.player_sum)
-        # if person == 'player':
-        #   msg += ', {:>2d}'.format(card)
-        # msg += '\n  Dealer: {:>2d}'.format(self.dealer_sum)
-        # if person == 'dealer':
-        #   msg += ', {:>2d}'.format(card)
-        # print(msg)
-
-        return card
-
-
-    def draw_1st_card(self):
-        point = np.random.randint(low=1, high=11)
-        return point
-
-
-    def isEndGame(self):
-        if self.player_sum < 1 or self.player_sum > 21:
-            return True
-        if self.dealer_sum < 1 or self.dealer_sum > 21:
-            return True
-        else:
-            return False
-
-    def reward(self):
-        if self.player_sum < 1 or self.player_sum > 21:
-            # print('Player busted')
-            return -1
-        if self.dealer_sum < 1 or self.dealer_sum > 21:
-            # print('Dealer busted')
-            return 1
-        if self.player_sum < self.dealer_sum:
-            # print('Player lost')
-            return -1
-        if self.player_sum > self.dealer_sum:
-            # print('Player won')
-            return 1
-        if self.player_sum == self.dealer_sum:
-            # print('A draw')
-            return 0
-        else:
-            raise ValueError(
-                'Impossible: {:d} {:d}'.format(
-                    self.player_sum,
-                    self.dealer_sum))
-
-    def step(self, action):
-        # player's move: stick or draw
-        # detection of end-game
-        # dealer's move: (criterion)
-        # detection of end-game
-        if action == 'stick':
-            while self.dealer_sum < 17:
-                self.dealer_sum += self.draw('dealer')
-                if self.isEndGame():
-                    break
-            return self.reward(), (None, None)
-
-        else:
-            self.player_sum += self.draw('player')
-            if self.isEndGame():
-                return self.reward(), (None, None)
-            else:
-                self.dealer_sum += self.draw('dealer')
-                if self.isEndGame():
-                    return self.reward(), (None, None)
-
-        return None, (self.player_sum, self.dealer_show)
 
 
 class MonteCarloPlayer(object):
@@ -162,11 +69,11 @@ class MonteCarloPlayer(object):
         *reward is useless in Monte Carlo
         '''
         p, d = state  # player_sum, dealer_show
-        a = self._epsilonGreedy(state=(p - 1, d - 1))
+        a = self.epsilonGreedy(state=(p - 1, d - 1))
         _ = self._update_a_step(state_action=(p - 1, d - 1, a))
         return self.action[a]
 
-    def _epsilonGreedy(self, state):
+    def epsilonGreedy(self, state):
         ''' return action index '''
         Nst = np.sum(self.nsa[state])
         eps = self.N0 / (self.N0 + Nst)
@@ -276,88 +183,54 @@ class SarsaLambdaPlayer(MonteCarloPlayer):
         # self.lam = lam      # discounting factor for eligibility
         # self.gamma = gamma  # discounting factor for reward
         # self.N0 = N0        # stickness to random action for epsilon
-        i, j, k = self.prev_state_action
-        self.Nsa[i, j, k] = 1
+        self.prev_state_action = 0, 0, 0
+        # i, j, k = self.prev_state_action
+        # self.Nsa[i, j, k] = 1
+
+    def act_initially(self, state):
+        p, d = state  # player_sum, dealer_show
+        a = self.epsilonGreedy(state=(p - 1, d - 1))
+        
+        s_t = p -1, d - 1, a
+        self.prev_state_action = s_t
+        # self.Nsa[p - 1, d - 1, a] += 1
+        self.Nsa[s_t] += 1
+        self.Esa[s_t] += self.gamma
+        
+        return self.action[a]
 
     def act(self, state, reward):
-        # pdb.set_trace()
         p, d = state  # player_sum, dealer_show
-        p, d = p - 1, d - 1  # convert into zero-started index for numpy
+        a = self.epsilonGreedy(state=(p - 1, d - 1))
+        _ = self._update_a_step(state_action=(p - 1, d - 1, a), reward=reward)
+        return self.action[a]
 
-        # Policy: epsilon-Greedy
-        Nst = np.sum(self.nsa[p, d])
-        eps = self.N0 / (self.N0 + Nst)  # eps: random, 1 - eps: best
-        actions = self.Qsa[p, d]
-        a = epsilonGreedy(eps, actions)
-
-        # Updates
-        # New: [p, d, a],  Old: [i, j, k]
-        i, j, k = self.prev_state_action
-        alpha = 1. / self.Nsa[i, j, k]  # [TODO] should I use [p, d, a] or [i, j, k] ?
-        delta = reward + self.gamma * self.Qsa[p, d, a] - self.Qsa[i, j, k]
-        self.Esa[i, j, k] += 1
+    def _update_a_step(self, state_action, reward):
+        s_t = state_action
+        s_t_1 = self.prev_state_action
+        alpha = 1. / self.Nsa[s_t_1]  # [TODO] should I use [p, d, a] or [i, j, k] ?
+        delta = reward + self.gamma * self.Qsa[s_t] - self.Qsa[s_t_1]
+        self.Esa[s_t] += 1
         self.Qsa += alpha * delta * self.Esa  # [TODO] Why propagate for all (s, a)?
         self.Esa *= self.gamma * self.lam
 
-        self.prev_state_action = [p, d, a]
-        self.Nsa[p, d, a] += 1  # I have to update Nsa here; otherwise the next step will explode when computing alpha.
-        return self.action[a]
+        # I have to update Nsa here; otherwise the next step will explode when computing alpha.
+        self.Nsa[s_t] += 1
+        self.prev_state_action = s_t
+        # self.Nsa[s_t_1] += 1
+        return None
 
     def _reset_count(self):
         self.Esa = 0. * self.Esa
 
     def update(self, reward):
         ''' The last step of SARSA is to update off-line '''
-        i, j, k = self.prev_state_action
-        self.Qsa[i, j, k] += \
-            1. / self.Nsa[i, j, k] * (reward - self.Qsa[i, j, k])
+        s_t_1 = self.prev_state_action
+        self.Qsa[s_t_1] += \
+            1. / self.Nsa[s_t_1] * (reward - self.Qsa[s_t_1])
         self._reset_count()
 
 
-
-def plot(player, msg='test'):
-    plt.figure(figsize=[12, 18])
-    plt.subplot(221)
-    plt.imshow(
-        np.max(player.Qsa, 2),
-        vmin=-1, vmax=1,
-        extent=[1, 10, 1, 21],
-        interpolation='none')
-    plt.colorbar()
-    plt.title('V(s) = max Q(s, a)')
-    plt.subplot(222)
-    plt.imshow(
-        np.log10(np.sum(player.Nsa, 2) + 1),
-        extent=[1, 10, 1, 21],
-        interpolation='none')
-    plt.colorbar()
-    plt.title('log10 N(s, a)')
-    plt.subplot(223)
-    plt.imshow(
-        player.Qsa[:, :, 0], vmin=-1, vmax=1,
-        extent=[1, 10, 1, 21],
-        interpolation='none')
-    plt.colorbar()
-    plt.title('hit')
-    plt.subplot(224)
-    plt.imshow(
-        player.Qsa[:, :, 1], vmin=-1, vmax=1,
-        extent=[1, 10, 1, 21],
-        interpolation='none')
-    plt.title('stick')
-    plt.colorbar()
-    plt.savefig(msg + '.png')
-
-
-    best_action = np.argmax(player.Qsa, 2)
-    plt.figure()
-    plt.imshow(
-        best_action,
-        cmap='gray',
-        extent=[1, 10, 1, 21],
-        interpolation='none')
-    plt.title('black: hit; white: stick')
-    plt.savefig(msg + 'best-act.png')
 
 
 def test_mc(N_ITER):
@@ -379,57 +252,64 @@ def test_mc(N_ITER):
         plot(player)
 
 
-def test_sarsa(N_ITER):
-    try:
-        mcPlayer = MonteCarloPlayer()
-        game = Easy21()
-        for it in range(N_ITER):
-            print('Episode {:8d}'.format(it))
-            game = Easy21()
-            reward = None
-            while reward is None:
-                state = game.get_state()
-                action = mcPlayer.act(state)
-                reward, state = game.step(action)
+# def test_sarsa(N_ITER):
+#     try:
+#         player = SarsaPlayer()
+#         for it in range(N_ITER):
+#             print('Episode {:8d}'.format(it))
+#             game = Easy21()
+#             reward = None
+#             while reward is None:
+#                 if reward is None:
+#                     reward = 0
+#                 state = game.get_state()
+#                 action = player.act(state, reward)
+#                 reward, state = game.step(action)
 
-            mcPlayer.update(reward)
-        
-
-        player = SarsaPlayer()
-        for it in range(N_ITER):
-            print('Episode {:8d}'.format(it))
-            game = Easy21()
-            reward = None
-            while reward is None:
-                if reward is None:
-                    reward = 0
-                state = game.get_state()
-                action = player.act(state, reward)
-                reward, state = game.step(action)
-
-            player.update(reward)
-    except KeyboardInterrupt:
-        print('Done')
-    finally:
-        plot(player)
+#             player.update(reward)
+#     except KeyboardInterrupt:
+#         print('Done')
+#     finally:
+#         plot(player)
 
 
 def test_sarsa_lambda(N_ITER):
     try:
-        for i in range(11):
+        # mcPlayer = MonteCarloPlayer()
+        # game = Easy21()
+        # for it in range(N_ITER):
+        #     print('Episode {:8d}'.format(it))
+        #     game = Easy21()
+        #     reward = None
+        #     while reward is None:
+        #         state = game.get_state()
+        #         action = mcPlayer.act(state)
+        #         reward, state = game.step(action)
+
+        #     mcPlayer.update(reward)
+        
+        for i in range(5, 6):
             player = SarsaLambdaPlayer(lam=i*0.1)
             for it in range(N_ITER):
                 print('Episode {:8d}'.format(it))
                 game = Easy21()
-                reward = None
-                while reward is None:
-                    if reward is None:
-                        reward = 0
-                    state = game.get_state()
-                    action = player.act(state, reward)
-                    reward, state = game.step(action)
-
+                # pdb.set_trace()
+                action = player.act_initially(game.get_state())
+                reward, state = game.step(action)
+                # reward = None
+                # while reward is None:
+                #     if reward is None:
+                #         reward = 0
+                while True:
+                    if game.isEndGame():
+                        break
+                    else:
+                        state = game.get_state()
+                        action = player.act(state, reward)
+                        reward, state = game.step(action)
+                pdb.set_trace()
                 player.update(reward)
+            # pdb.set_trace()
             plot(player, 'sarsa-lam-{}'.format(i))
         
     except KeyboardInterrupt:
@@ -444,5 +324,5 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         N_ITER = int(sys.argv[1])
     # game = Easy21()
-    # test_sarsa_lambda(N_ITER)
-    test_mc(N_ITER)
+    test_sarsa_lambda(N_ITER)
+    # test_mc(N_ITER)
