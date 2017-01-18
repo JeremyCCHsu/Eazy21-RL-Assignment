@@ -32,9 +32,6 @@ import numpy as np
 from util import plot
 from game import Easy21
 
-N_ITER = 1  # num of episodes
-
-
 
 def epsilonGreedy(eps, actions):
     ''' return action index '''
@@ -99,25 +96,22 @@ class MonteCarloPlayer(object):
 
 class SarsaLambdaPlayer(MonteCarloPlayer):
     '''
-    Backward view
+    Notes:
+        Backward view
         Q += a[R + rQ' - Q]
     '''
     def __init__(self, N0=100, lam=1.0, gamma=1.0):
-        super(SarsaLambdaPlayer, self).__init__(N0, lam, gamma)
-        # self.nsa = np.zeros([21, 10, 2])
+        '''
         # use 'self.nsa' as Eligibility trace
+        '''
+        super(SarsaLambdaPlayer, self).__init__(N0, lam, gamma)
         self.prev_state_action = 0, 0, 0
-        self.prev_2nd_state_action = 0, 0, 0
-        # i, j, k = self.prev_state_action
-        # self.Nsa[i, j, k] = 1
 
     def act_initially(self, state):
         p, d = state  # player_sum, dealer_show
         a = self.epsilonGreedy(state=(p - 1, d - 1))
 
         s_t = p -1, d - 1, a
-        # self.Nsa[s_t] += 1
-        # self.nsa[s_t] += 1
 
         self.prev_state_action = s_t
         self.prev_2nd_state_action = s_t
@@ -131,6 +125,21 @@ class SarsaLambdaPlayer(MonteCarloPlayer):
             reward=reward)
         return self.action[a]
 
+    def update(self, reward):
+        s_t = self.prev_state_action
+
+        self.Nsa[s_t] += 1
+        self.nsa = self.nsa * self.gamma * self.lam
+        self.nsa[s_t] += 1
+
+        # [TODO] I use a different update for the last step. (not sure if this is correct)
+        alpha = 1. / self.Nsa[s_t]
+        delta = reward - self.Qsa[s_t]
+        self.Qsa = self.Qsa + alpha * delta * self.nsa  # [TODO] Why propagate for all (s, a)?
+
+        self._reset_count()
+
+
     def _update_a_step(self, state_action, reward):
         s_t = state_action
         s_t_1 = self.prev_state_action
@@ -140,36 +149,14 @@ class SarsaLambdaPlayer(MonteCarloPlayer):
         self.nsa[s_t_1] += 1
 
         alpha = 1. / self.Nsa[s_t_1]  # [TODO] should I use [p, d, a] or [i, j, k] ?
-        delta = reward + self.gamma * self.Qsa[s_t] - self.Qsa[s_t_1]
-        
+        delta = reward + self.gamma * self.Qsa[s_t] - self.Qsa[s_t_1]        
         self.Qsa = self.Qsa + alpha * delta * self.nsa  # [TODO] Why propagate for all (s, a)?
-        
-        # I have to update Nsa here; otherwise the next step will explode when computing alpha.
-        # self.Nsa[s_t] += 1
+
         self.prev_state_action = s_t
-        self.prev_2nd_state_action = s_t_1
-        # self.Nsa[s_t_1] += 1
         return None
 
     def _reset_count(self):
         self.nsa = 0. * self.nsa
-
-    def update(self, reward):
-        s_t = self.prev_state_action
-        # self.Nsa[s_t] += 1
-
-        self.Nsa[s_t] += 1
-        self.nsa = self.nsa * self.gamma * self.lam
-        self.nsa[s_t] += 1
-
-        alpha = 1. / self.Nsa[s_t]
-        delta = reward - self.Qsa[s_t]
-        self.Qsa = self.Qsa + alpha * delta * self.nsa  # [TODO] Why propagate for all (s, a)?
-        # self.nsa *= self.gamma * self.lam
-
-        self._reset_count()
-
-
 
 
 def test_mc(N_ITER):
@@ -195,6 +182,8 @@ def test_mc(N_ITER):
 
 def test_sarsa_lambda(N_ITER, N_ITER_SARSA):
     try:
+        Qsa = list()
+
         mcplayer = MonteCarloPlayer()
         for it in range(N_ITER):
             print('Episode {:8d}'.format(it))
@@ -209,6 +198,7 @@ def test_sarsa_lambda(N_ITER, N_ITER_SARSA):
 
             mcplayer.update(reward)
         plot(mcplayer, 'MC-as-standard')
+        Qsa.append(np.expand_dims(mcplayer.Qsa, 0))
 
         n_lambda = 11
         mse = np.zeros((n_lambda,))
@@ -231,25 +221,34 @@ def test_sarsa_lambda(N_ITER, N_ITER_SARSA):
 
             plot(player, 'sarsa-lam-{}'.format(i))
             mse[i] = np.mean(np.square(mcplayer.Qsa - player.Qsa))
-        
+            Qsa.append(np.expand_dims(player.Qsa, 0))
+
+        with open('Qsa.npf', 'w') as f:
+            Qsa = np.concatenate(Qsa, 0)
+            Qsa.tofile(f)
     except KeyboardInterrupt:
         print('Done')
+
     finally:
         plot(player)
         plt.figure()
         plt.plot(np.arange(11) / 10., mse, 'o-')
+        plt.xlabel('lambda')
+        plt.ylabel('Mean Squared Error')
         plt.savefig('MSE.png')
         plt.close()
 
 
 if __name__ == '__main__':
-    print(sys.argv)
     if len(sys.argv) > 1:
         N_ITER = int(sys.argv[1])
+    else:
+        N_ITER = 1000
+
     if len(sys.argv) > 2:
         N_ITER_SARSA = int(sys.argv[2])
     else:
         N_ITER_SARSA = 1000
-    # game = Easy21()
+    
     test_sarsa_lambda(N_ITER, N_ITER_SARSA)
     # test_mc(N_ITER)
