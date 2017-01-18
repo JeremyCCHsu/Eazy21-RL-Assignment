@@ -13,7 +13,7 @@ def plot(player, msg='test'):
     plt.subplot(321)
     plt.imshow(
         np.max(player.Qsa, 2),
-        # vmin=-1, vmax=1,
+        vmin=-1, vmax=1,
         extent=[1, 10, 1, 21],
         interpolation='none')
     plt.colorbar()
@@ -31,7 +31,7 @@ def plot(player, msg='test'):
     plt.subplot(323)
     plt.imshow(
         player.Qsa[:, :, 0],
-        # vmin=-1, vmax=1,
+        vmin=-1, vmax=1,
         extent=[1, 10, 1, 21],
         interpolation='none')
     plt.colorbar()
@@ -40,7 +40,7 @@ def plot(player, msg='test'):
     plt.subplot(324)
     plt.imshow(
         player.Qsa[:, :, 1],
-        # vmin=-1, vmax=1,
+        vmin=-1, vmax=1,
         extent=[1, 10, 21, 1],
         interpolation='none')
     plt.colorbar()

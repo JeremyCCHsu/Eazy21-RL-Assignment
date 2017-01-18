@@ -35,7 +35,7 @@ from game import Easy21
 
 def epsilonGreedy(eps, actions):
     ''' return action index '''
-    roll = np.random.uniform(1)
+    roll = np.random.uniform()
     if roll > eps:  # act greedily
         a = np.argmax(actions)
         # print('Greedy act: (p={:d}, d={:d}) => a={:d}; Exp = {}; [{}, {}]'.format(
@@ -251,5 +251,5 @@ if __name__ == '__main__':
     else:
         N_ITER_SARSA = 1000
     
-    # test_sarsa_lambda(N_ITER, N_ITER_SARSA)
-    test_mc(N_ITER)
+    test_sarsa_lambda(N_ITER, N_ITER_SARSA)
+    # test_mc(N_ITER)
