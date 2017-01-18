@@ -193,7 +193,7 @@ def test_mc(N_ITER):
         plot(player)
 
 
-def test_sarsa_lambda(N_ITER):
+def test_sarsa_lambda(N_ITER, N_ITER_SARSA):
     try:
         mcplayer = MonteCarloPlayer()
         for it in range(N_ITER):
@@ -210,11 +210,11 @@ def test_sarsa_lambda(N_ITER):
             mcplayer.update(reward)
         plot(mcplayer, 'MC-as-standard')
 
-        nEpisode = 11
-        mse = np.zeros((nEpisode,))
-        for i in range(0, nEpisode):
+        n_lambda = 11
+        mse = np.zeros((n_lambda,))
+        for i in range(0, n_lambda):
             player = SarsaLambdaPlayer(lam=i*0.1)
-            for it in range(1000):
+            for it in range(N_ITER_SARSA):
                 print('Episode {:8d}'.format(it))
                 game = Easy21()
                 action = player.act_initially(game.get_state())

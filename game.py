@@ -9,24 +9,26 @@ class Easy21(object):
         self.p = p  # prob of red (minus) card
 
         # player sum v. dealer showing
-        self.dealer_sum = self.dealer_show = self.draw_1st_card()
-        self.player_sum = self.draw_1st_card()
-        self._isEnded = False
+        self.dealer_sum = self.dealer_show = self.draw(color='black')
+        self.player_sum = self.draw(color='black')
+        self.isEnded = False
 
         # print('Initially:\n' +
         #   '  Player: {:d}\n'.format(self.player_sum) + 
         #   '  Dealer: {:d}\n'.format(self.dealer_show))
 
+    # def clairvoyance(self):
+    #     return [self.player_sum, self.dealer_sum]
 
-    def get_state(self):
-        return [self.player_sum, self.dealer_show]
+    def draw(self, person=None, color=None):
+        ''' Draw a card from the (infinite) deck '''
+        if color == 'black':
+            sign = 0
+        elif color == 'red':
+            sign = 1
+        else:
+            sign = np.random.binomial(1, self.p)
 
-    def clairvoyance(self):
-        return [self.player_sum, self.dealer_sum]
-
-
-    def draw(self, person):
-        sign = np.random.binomial(1, self.p)
         card = np.random.randint(low=1, high=11)
         if sign > 0.5:
             card = - card
@@ -41,14 +43,31 @@ class Easy21(object):
 
         return card
 
+    def step(self, action):
+        # player's move: stick or draw
+        # detection of end-game
+        # dealer's move: (criterion)
+        # detection of end-game
+        if action == 'stick':
+            while self.dealer_sum < 17:
+                self.dealer_sum += self.draw('dealer')
+                self.isEnded = True
+                # if self.isEndGame():
+                #     break
+            return self._reward(), (self.player_sum, self.dealer_show)
+        else:
+            self.player_sum += self.draw('player')
+            if self.isEndGame():
+                return self._reward(), (self.player_sum, self.dealer_show)
+            else:
+                self.dealer_sum += self.draw('dealer')
+                if self.isEndGame():
+                    return self._reward(), (self.player_sum, self.dealer_show)
 
-    def draw_1st_card(self):
-        point = np.random.randint(low=1, high=11)
-        return point
+        return 0, (self.player_sum, self.dealer_show)
 
-
-    def isEnded(self):
-        if self._isEnded:
+    def isEndGame(self):
+        if self.isEnded:
             return True
         if self.player_sum < 1 or self.player_sum > 21:
             return True
@@ -57,7 +76,10 @@ class Easy21(object):
         else:
             return False
 
-    def reward(self):
+    def get_state(self):
+        return [self.player_sum, self.dealer_show]
+
+    def _reward(self):
         if self.player_sum < 1 or self.player_sum > 21:
             # print('Player busted')
             return -1
@@ -79,27 +101,4 @@ class Easy21(object):
                     self.player_sum,
                     self.dealer_sum))
 
-    def step(self, action):
-        # player's move: stick or draw
-        # detection of end-game
-        # dealer's move: (criterion)
-        # detection of end-game
-        if action == 'stick':
-            while self.dealer_sum < 17:
-                self.dealer_sum += self.draw('dealer')
-                # self._isEnded = True
-                if self.isEnded():
-                    break
-            self._isEnded = True
-            return self.reward(), (self.player_sum, self.dealer_show)
-        else:
-            self.player_sum += self.draw('player')
-            if self.isEnded():
-                return self.reward(), (self.player_sum, self.dealer_show)
-            else:
-                self.dealer_sum += self.draw('dealer')
-                if self.isEnded():
-                    return self.reward(), (self.player_sum, self.dealer_show)
-
-        return 0, (self.player_sum, self.dealer_show)
 
