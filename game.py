@@ -81,14 +81,9 @@ class Easy21(object):
                     self.dealer_sum))
 
     def step(self, action):
-        # player's move: stick or draw
-        # detection of end-game
-        # dealer's move: (criterion)
-        # detection of end-game
         if action == 'stick':
             while self.dealer_sum < 17:
                 self.dealer_sum += self.draw('dealer')
-                # self._isEnded = True
                 if self.isEnded():
                     break
             self._isEnded = True
@@ -101,6 +96,6 @@ class Easy21(object):
                 self.dealer_sum += self.draw('dealer')
                 if self.isEnded():
                     return self._reward(), (self.player_sum, self.dealer_show)
-
-        return 0, (self.player_sum, self.dealer_show)
+                else:
+                    return 0, (self.player_sum, self.dealer_show)
 

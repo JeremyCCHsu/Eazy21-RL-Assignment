@@ -52,12 +52,12 @@ def epsilonGreedy(eps, actions):
 class MonteCarloPlayer(object):
     def __init__(self, N0=100, lam=1.0, gamma=1.0):
         self.Qsa = np.zeros([21, 10, 2])
-        self.Nsa = np.zeros([21, 10, 2])  # the whole history count
-        self.nsa = np.zeros([21, 10, 2])  # this episode
+        self.Nsa = np.zeros([21, 10, 2])  # visit count throughout the whole history
+        self.nsa = np.zeros([21, 10, 2])  # visit count in this episode
         self.action = ['hit', 'stick']
         self.N0 = N0        # discounting factor for eligibility
-        self.lam = lam      # useless in MC; discounting factor for reward
-        self.gamma = gamma  # useless in MC; stickness to random action for epsilon
+        self.lam = lam      # useless in MC;
+        self.gamma = gamma  # useless in MC; discounting factor for reward
 
     def act(self, state, reward=None):
         '''
@@ -71,13 +71,13 @@ class MonteCarloPlayer(object):
 
     def epsilonGreedy(self, state):
         ''' return action index '''
-        Nst = np.sum(self.nsa[state])
+        Nst = np.sum(self.Nsa[state])
         eps = self.N0 / (self.N0 + Nst)
         actions = self.Qsa[state]
         return epsilonGreedy(eps, actions)
 
     def _reset_count(self):
-        self.nsa = np.zeros([21, 10, 2])
+        self.nsa *= 0 # np.zeros([21, 10, 2])
         return None
 
     def _update_a_step(self, state_action):
@@ -87,10 +87,10 @@ class MonteCarloPlayer(object):
 
     def update(self, reward):
         ''' Episode-wise MC can only update off-line '''
-        i, j, k = np.nonzero(self.nsa)
+        index = np.nonzero(self.nsa)
         self.Nsa += self.nsa
-        self.Qsa[i, j, k] += \
-            1. / self.Nsa[i, j, k] * (reward - self.Qsa[i, j, k])
+        self.Qsa[index] += \
+            1. / self.Nsa[index] * (reward - self.Qsa[index])
         self._reset_count()
 
 
@@ -114,7 +114,7 @@ class SarsaLambdaPlayer(MonteCarloPlayer):
         s_t = p -1, d - 1, a
 
         self.prev_state_action = s_t
-        self.prev_2nd_state_action = s_t
+        # self.prev_2nd_state_action = s_t
         return self.action[a]
 
     def act(self, state, reward):
@@ -161,7 +161,7 @@ class SarsaLambdaPlayer(MonteCarloPlayer):
 
 def test_mc(N_ITER):
     try:
-        player = MonteCarloPlayer()
+        mcplayer = MonteCarloPlayer()
         for it in range(N_ITER):
             print('Episode {:8d}'.format(it))
             game = Easy21()
@@ -170,14 +170,15 @@ def test_mc(N_ITER):
                 if game.isEnded():
                     break
                 state = game.get_state()
-                action = player.act(state)
+                action = mcplayer.act(state)
                 reward, state = game.step(action)
 
-            player.update(reward)
+            mcplayer.update(reward)
+        plot(mcplayer, 'MC-as-standard')
     except KeyboardInterrupt:
         print('Done')
     finally:
-        plot(player)
+        plot(mcplayer)
 
 
 def test_sarsa_lambda(N_ITER, N_ITER_SARSA):
@@ -250,5 +251,5 @@ if __name__ == '__main__':
     else:
         N_ITER_SARSA = 1000
     
-    test_sarsa_lambda(N_ITER, N_ITER_SARSA)
-    # test_mc(N_ITER)
+    # test_sarsa_lambda(N_ITER, N_ITER_SARSA)
+    test_mc(N_ITER)
