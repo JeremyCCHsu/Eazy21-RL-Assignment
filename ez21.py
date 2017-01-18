@@ -50,7 +50,7 @@ def epsilonGreedy(eps, actions):
 
 
 class MonteCarloPlayer(object):
-    def __init__(self, N0=100, lam=1.0, gamma=1.0):
+    def __init__(self, N0=1000, lam=1.0, gamma=1.0):
         self.Qsa = np.zeros([21, 10, 2])
         self.Nsa = np.zeros([21, 10, 2])  # visit count throughout the whole history
         self.nsa = np.zeros([21, 10, 2])  # visit count in this episode
@@ -189,15 +189,16 @@ def test_sarsa_lambda(N_ITER, N_ITER_SARSA):
         for it in range(N_ITER):
             print('Episode {:8d}'.format(it))
             game = Easy21()
-            reward = None
             while True:
                 if game.isEnded():
                     break
-                state = game.get_state()
-                action = mcplayer.act(state)
-                reward, state = game.step(action)
+                else:
+                    state = game.get_state()
+                    action = mcplayer.act(state)
+                    reward, state = game.step(action)
 
             mcplayer.update(reward)
+
         plot(mcplayer, 'MC-as-standard')
         Qsa.append(np.expand_dims(mcplayer.Qsa, 0))
 
